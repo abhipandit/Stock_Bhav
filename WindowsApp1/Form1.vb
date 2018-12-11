@@ -15,13 +15,15 @@ Public Class Form1
 	Dim downloadpath = Environment.ExpandEnvironmentVariables("%USERPROFILE%\Downloads") & "\stock_files"
 
 	Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+		'Try
 		CreateDates()
-		excelData()
-		'MsgBox(downloadpath)
+			excelData()
+			'MsgBox(downloadpath)
 		'Form2.Visible = True
-
 		'Me.Close()
-
+		''Catch ex As Exception
+		'	MsgBox("Data not available for one of these dates")
+		'End Try
 	End Sub
 
 
@@ -36,6 +38,12 @@ Public Class Form1
 		Dim currentDate_1 As DateTime
 
 		Dim date_ctr = 0
+
+		Dim con_chk As New SqlConnection
+
+
+		con_chk.ConnectionString = "Data Source=(local);Initial Catalog=bhavcopy;Integrated Security=True"
+		con_chk.Open()
 
 		For date_ctr = 1 To 3
 
@@ -56,24 +64,55 @@ Public Class Form1
 				day_val = currentDate_1.Day
 			End If
 
+
 			Dim file_name_1 = "cm" & day_val & MonthName(currentDate_1.Month, True).ToUpper() & currentDate_1.Year & "bhav.csv.zip"
 			Dim file_name_2 = currentDate_1.Year & "/" & MonthName(currentDate_1.Month, True).ToUpper() & "/cm" & day_val & MonthName(currentDate_1.Month, True).ToUpper() & currentDate_1.Year & "bhav.csv.zip"
-			DownloadBhavCopy(file_name_1, file_name_2, currentDate_1)
 
+			Dim cmd_chk_1 As New SqlCommand
+			cmd_chk_1.Connection = con_chk
+			cmd_chk_1.CommandText = "select count(*) as t1 From bhavcopy where cast(TIMESTAMP as date)= '" & currentDate_1 & "'"
+			If cmd_chk_1.ExecuteScalar = 0 Then
+				DownloadBhavCopy(file_name_1, file_name_2, currentDate_1)
+			End If
 
 			Dim dat_name_1 = "MTO_" & day_val & currentDate_1.Month & currentDate_1.Year & ".DAT"
-			DownloadSecurityDat(dat_name_1, dat_name_1, currentDate_1)
+			Dim cmd_chk_2 As New SqlCommand
+			cmd_chk_2.Connection = con_chk
+			cmd_chk_2.CommandText = "select count(*) From Delivery_Position where cast(TIMESTAMP as date)= '" & currentDate_1 & "'"
+			If cmd_chk_2.ExecuteScalar = 0 Then
+				DownloadSecurityDat(dat_name_1, dat_name_1, currentDate_1)
+			End If
 
 			Dim vol_name_1 = "CMVOLT_" & day_val & currentDate_1.Month & currentDate_1.Year & ".CSV"
-			DownloadVolt(vol_name_1, vol_name_1, currentDate_1)
+			Dim cmd_chk_3 As New SqlCommand
+			cmd_chk_3.Connection = con_chk
+			cmd_chk_3.CommandText = "select count(*) From CMVOLT where cast(TIMESTAMP as date)= '" & currentDate_1 & "'"
+			If cmd_chk_3.ExecuteScalar = 0 Then
+				DownloadVolt(vol_name_1, vol_name_1, currentDate_1)
+			End If
 
 			Dim fobhavcopy_1 = "fo" & day_val & MonthName(currentDate_1.Month, True).ToUpper() & currentDate_1.Year & "bhav.csv.zip"
 			Dim fobhavcopy_2 = currentDate_1.Year & "/" & MonthName(currentDate_1.Month, True).ToUpper() & "/fo" & day_val & MonthName(currentDate_1.Month, True).ToUpper() & currentDate_1.Year & "bhav.csv.zip"
-			DownloadFOCopy(fobhavcopy_1, fobhavcopy_2, currentDate_1)
+
+
+			Dim cmd_chk_4 As New SqlCommand
+			cmd_chk_4.Connection = con_chk
+			cmd_chk_4.CommandText = "select count(*) From fo_bhavcopy where cast(TIMESTAMP as date)= '" & currentDate_1 & "'"
+			If cmd_chk_4.ExecuteScalar = 0 Then
+				DownloadFOCopy(fobhavcopy_1, fobhavcopy_2, currentDate_1)
+			End If
+
+			Dim indClose_1 = "ind_close_all_" & day_val & currentDate_1.Month & currentDate_1.Year & ".csv"
+			Dim cmd_chk_5 As New SqlCommand
+			cmd_chk_5.Connection = con_chk
+			cmd_chk_5.CommandText = "select count(*) From index_close where cast(index_date as date)= '" & currentDate_1 & "'"
+			If cmd_chk_5.ExecuteScalar = 0 Then
+				DownloadIndexClose(indClose_1, indClose_1, currentDate_1)
+			End If
 
 		Next
 
-
+		con_chk.Close()
 		MsgBox("Download Done")
 
 	End Function
@@ -105,7 +144,7 @@ Public Class Form1
 
 		wc.DownloadFile(fileurl, filelocation)
 
-		ToDataTable(filelocation, "CMVOLT")
+			ToDataTable(filelocation, "CMVOLT")
 
 	End Function
 
@@ -135,9 +174,10 @@ Public Class Form1
 		wc.Headers("Accept") = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 		wc.Headers("User-Agent") = "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.83 Safari/537.1"
 
+
 		wc.DownloadFile(fileurl, filelocation)
 
-		ExtractZip(filelocation, "fo_bhavcopy")
+			ExtractZip(filelocation, "fo_bhavcopy")
 
 	End Function
 	Public Function DownloadBhavCopy(filename As String, filepath As String, downloadDt As DateTime)
@@ -168,6 +208,35 @@ Public Class Form1
 		wc.DownloadFile(fileurl, filelocation)
 
 		ExtractZip(filelocation, "bhavcopy")
+	End Function
+	Public Function DownloadIndexClose(filename As String, filepath As String, dat_date As DateTime)
+
+		Dim wc As New WebClient
+		wc.Proxy = WebRequest.GetSystemWebProxy()
+		Dim fileurl As String = "https://www.nseindia.com/content/indices/" & filepath
+
+		downloadpath = Environment.ExpandEnvironmentVariables("%USERPROFILE%\Downloads") & "\stock_files"
+
+		Dim downloadDay = ""
+		If dat_date.Day < 10 Then
+			downloadDay = "0" & dat_date.Day
+		Else
+			downloadDay = dat_date.Day
+		End If
+
+		downloadpath = downloadpath & "\" & dat_date.Month & "" & downloadDay & "" & dat_date.Year
+
+		If (Not System.IO.Directory.Exists(downloadpath)) Then
+			System.IO.Directory.CreateDirectory(downloadpath)
+		End If
+		Dim filelocation As String = downloadpath & "\" & filename
+
+		wc.Headers("Accept") = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+		wc.Headers("User-Agent") = "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.83 Safari/537.1"
+
+		wc.DownloadFile(fileurl, filelocation)
+
+		ToDataTable(filelocation, "index_close")
 
 	End Function
 	Public Function DownloadSecurityDat(filename As String, filepath As String, dat_date As DateTime)
@@ -256,12 +325,71 @@ Public Class Form1
 
 	End Function
 
+	Public Function ReadIndex(datPath As String, dat_date As DateTime)
+
+
+		Dim folderPath = Path.GetDirectoryName(datPath)
+		Dim FilePath = Path.GetFileName(datPath)
+
+		folderPath = folderPath
+
+		Dim con As New SqlConnection
+		Dim cmd As New SqlCommand
+
+		Dim lines As String() = File.ReadAllLines(datPath)
+
+
+		Try
+			con.ConnectionString = "Data Source=(local);Initial Catalog=bhavcopy;Integrated Security=True"
+			con.Open()
+			cmd.Connection = con
+
+			cmd.CommandText = "Delete From index_close where cast(index_date as date)= '" & dat_date & "'"
+			cmd.ExecuteNonQuery()
+
+
+			For i As Integer = 4 To lines.Length - 1
+
+				Dim id1 As Integer = Convert.ToInt32(lines(i).Split(","c)(0))
+				Dim id2 As Integer = Convert.ToInt32(lines(i).Split(","c)(1))
+				Dim id3 As String = Convert.ToString(lines(i).Split(","c)(2))
+				Dim id4 As String = Convert.ToString(lines(i).Split(","c)(3))
+				Dim id5 As Double = Convert.ToDouble(lines(i).Split(","c)(4))
+				Dim id6 As Double = Convert.ToDouble(lines(i).Split(","c)(5))
+
+				Dim id7 As Double = Convert.ToDouble(lines(i).Split(","c)(6))
+				Dim id8 As Double = Convert.ToDouble(lines(i).Split(","c)(7))
+				Dim id9 As Double = Convert.ToDouble(lines(i).Split(","c)(8))
+				Dim id10 As Double = Convert.ToDouble(lines(i).Split(","c)(9))
+				Dim id11 As Double = Convert.ToDouble(lines(i).Split(","c)(10))
+				Dim id12 As Double = Convert.ToDouble(lines(i).Split(","c)(11))
+
+				cmd.CommandText = "insert into index_close values(" & id1 & ",'" & id2 & "'," & id3 & "," & id4 & "," & id5 & "," & id6 & "," & dat_date & ")"
+				cmd.ExecuteNonQuery()
+
+			Next
+
+
+		Catch ex As Exception
+			MessageBox.Show("Error while deleting record on table..." & ex.Message, "Delete Records")
+
+		Finally
+
+			con.Close()
+		End Try
+
+
+
+
+	End Function
+
 
 	Public Function ExtractZip(fileZip As String, TableName As String)
 		Dim zipPath As String = fileZip
 		Dim extractPath As String = fileZip.Replace(".zip", "")
 
 		If (System.IO.Directory.Exists(extractPath)) Then
+
 			Dim di As New IO.DirectoryInfo(extractPath)
 			di.Delete(True)
 		End If
@@ -313,59 +441,91 @@ Public Class Form1
 
 
 		Dim con As New SqlConnection
-		Dim cmd As New SqlCommand
 
 
-		Try
-			con.ConnectionString = "Data Source=(local);Initial Catalog=bhavcopy;Integrated Security=True"
+
+		'Try
+		con.ConnectionString = "Data Source=(local);Initial Catalog=bhavcopy;Integrated Security=True"
 			con.Open()
-			cmd.Connection = con
-			Dim delFlag As Boolean = False
+
+		Dim delFlag As Boolean = False
 			For Each dr In dt.Rows
+			Dim cmd As New SqlCommand
+			cmd.Connection = con
+			If iRow <> 0 Then
 
-				If iRow <> 0 Then
-
-					If delFlag = False Then
-						If TableName = "bhavcopy" Then
-							cmd.CommandText = "Delete From " & TableName & " where cast(TIMESTAMP as date)= '" & dr.ItemArray(10) & "'"
-							cmd.ExecuteNonQuery()
-						End If
-						If TableName = "fo_bhavcopy" Then
-							cmd.CommandText = "Delete From " & TableName & " where cast(TIMESTAMP as date)= '" & dr.ItemArray(14) & "'"
-							cmd.ExecuteNonQuery()
-						End If
-						If TableName = "CMVOLT" Then
-							cmd.CommandText = "Delete From " & TableName & " where cast(TIMESTAMP as date)= '" & dr.ItemArray(0) & "'"
-							cmd.ExecuteNonQuery()
-						End If
-
-						delFlag = True
-					End If
-
-					If TableName = "bhavcopy" And dr.ItemArray(1) = "EQ" Then
-						cmd.CommandText = "insert into bhavcopy values('" & dr.ItemArray(0) & "','" & dr.ItemArray(1) & "'," & dr.ItemArray(2) & "," & dr.ItemArray(3) & "," & dr.ItemArray(4) & "," & dr.ItemArray(5) & "," & dr.ItemArray(6) & "," & dr.ItemArray(7) & "," & dr.ItemArray(8) & "," & dr.ItemArray(9) & ",'" & dr.ItemArray(10) & "'," & dr.ItemArray(11) & ",'" & dr.ItemArray(12) & "')"
-						cmd.ExecuteNonQuery()
-					ElseIf TableName = "CMVOLT" Then
-						If dr.ItemArray(2).ToString() <> "" Then
-							cmd.CommandText = "insert into CMVOLT values('" & dr.ItemArray(0) & "','" & dr.ItemArray(1) & "'," & dr.ItemArray(2) & "," & dr.ItemArray(3) & "," & dr.ItemArray(4) & "," & dr.ItemArray(5) & "," & dr.ItemArray(6) & "," & dr.ItemArray(7) & ")"
-							cmd.ExecuteNonQuery()
-						End If
-					ElseIf TableName = "fo_bhavcopy" And dr.ItemArray(0) = "FUTSTK" Then
-						cmd.CommandText = "insert into fo_bhavcopy values('" & dr.ItemArray(0) & "','" & dr.ItemArray(1) & "','" & dr.ItemArray(2) & "'," & dr.ItemArray(3) & ",'" & dr.ItemArray(4) & "'," & dr.ItemArray(5) & "," & dr.ItemArray(6) & "," & dr.ItemArray(7) & "," & dr.ItemArray(8) & "," & dr.ItemArray(9) & "," & dr.ItemArray(10) & "," & dr.ItemArray(11) & "," & dr.ItemArray(12) & "," & dr.ItemArray(13) & ",'" & dr.ItemArray(14) & "')"
+				If delFlag = False Then
+					If TableName = "bhavcopy" Then
+						cmd.CommandText = "Delete From " & TableName & " where cast(TIMESTAMP as date)= '" & dr.ItemArray(10) & "'"
 						cmd.ExecuteNonQuery()
 					End If
-
+					If TableName = "fo_bhavcopy" Then
+						cmd.CommandText = "Delete From " & TableName & " where cast(TIMESTAMP as date)= '" & dr.ItemArray(14) & "'"
+						cmd.ExecuteNonQuery()
+					End If
+					If TableName = "CMVOLT" Then
+						cmd.CommandText = "Delete From " & TableName & " where cast(TIMESTAMP as date)= '" & dr.ItemArray(0) & "'"
+						cmd.ExecuteNonQuery()
+					End If
+					If TableName = "index_close" Then
+						cmd.CommandText = "Delete From " & TableName & " where cast(index_date as date)= '" & dr.ItemArray(1) & "'"
+						cmd.ExecuteNonQuery()
+					End If
+					delFlag = True
 				End If
-				iRow = iRow + 1
+
+				If TableName = "index_close" Then
+					cmd.CommandText = "insert into index_close values(@index_name,@index_date,@open_index_value,@high_index_value,@low_index_value,@closing_index_value,@points_change,@change_per,@volume,@turnover,@P_E,@P_B,@div_yeild)"
+
+					cmd.Parameters.AddWithValue("@index_name", dr.ItemArray(0))
+					cmd.Parameters.AddWithValue("@index_date", dr.ItemArray(1))
+					cmd.Parameters.AddWithValue("@open_index_value", dr.ItemArray(2))
+					cmd.Parameters.AddWithValue("@high_index_value", dr.ItemArray(3))
+					cmd.Parameters.AddWithValue("@low_index_value", dr.ItemArray(4))
+					cmd.Parameters.AddWithValue("@closing_index_value", dr.ItemArray(5))
+					cmd.Parameters.AddWithValue("@points_change", dr.ItemArray(6))
+					cmd.Parameters.AddWithValue("@change_per", dr.ItemArray(7))
+					cmd.Parameters.AddWithValue("@volume", dr.ItemArray(8))
+					cmd.Parameters.AddWithValue("@turnover", dr.ItemArray(9))
+					cmd.Parameters.AddWithValue("@P_E", dr.ItemArray(10))
+					cmd.Parameters.AddWithValue("@P_B", dr.ItemArray(11))
+					cmd.Parameters.AddWithValue("@div_yeild", dr.ItemArray(12))
+
+					cmd.ExecuteNonQuery()
+				ElseIf TableName = "bhavcopy" And dr.ItemArray(1) = "EQ" Then
+					cmd.CommandText = "insert into bhavcopy values('" & dr.ItemArray(0) & "','" & dr.ItemArray(1) & "'," & dr.ItemArray(2) & "," & dr.ItemArray(3) & "," & dr.ItemArray(4) & "," & dr.ItemArray(5) & "," & dr.ItemArray(6) & "," & dr.ItemArray(7) & "," & dr.ItemArray(8) & "," & dr.ItemArray(9) & ",'" & dr.ItemArray(10) & "'," & dr.ItemArray(11) & ",'" & dr.ItemArray(12) & "')"
+					cmd.ExecuteNonQuery()
+				ElseIf TableName = "CMVOLT" Then
+					If dr.ItemArray(2).ToString() <> "" Then
+						cmd.CommandText = "insert into CMVOLT values(@TIMESTAMP,@Symbol,@Underlying_Close_Price,@Underlying_Previous_Day_Close_Price,@Underlying_Log_Returns,@Previous_Day_Underlying_Volatility,@Current_Day_Underlying_Daily_Volatility,@Underlying_Annualised_Volatility)"
+						cmd.Parameters.AddWithValue("@TIMESTAMP", dr.ItemArray(0))
+						cmd.Parameters.AddWithValue("@Symbol", dr.ItemArray(1))
+						cmd.Parameters.AddWithValue("@Underlying_Close_Price", dr.ItemArray(2))
+						cmd.Parameters.AddWithValue("@Underlying_Previous_Day_Close_Price", dr.ItemArray(3))
+						cmd.Parameters.AddWithValue("@Underlying_Log_Returns", dr.ItemArray(4))
+						cmd.Parameters.AddWithValue("@Previous_Day_Underlying_Volatility", dr.ItemArray(5))
+						cmd.Parameters.AddWithValue("@Current_Day_Underlying_Daily_Volatility", dr.ItemArray(6))
+						cmd.Parameters.AddWithValue("@Underlying_Annualised_Volatility", dr.ItemArray(7))
+						cmd.ExecuteNonQuery()
+					End If
+				ElseIf TableName = "fo_bhavcopy" And dr.ItemArray(0) = "FUTSTK" Then
+					cmd.CommandText = "insert into fo_bhavcopy values('" & dr.ItemArray(0) & "','" & dr.ItemArray(1) & "','" & dr.ItemArray(2) & "'," & dr.ItemArray(3) & ",'" & dr.ItemArray(4) & "'," & dr.ItemArray(5) & "," & dr.ItemArray(6) & "," & dr.ItemArray(7) & "," & dr.ItemArray(8) & "," & dr.ItemArray(9) & "," & dr.ItemArray(10) & "," & dr.ItemArray(11) & "," & dr.ItemArray(12) & "," & dr.ItemArray(13) & ",'" & dr.ItemArray(14) & "')"
+					cmd.ExecuteNonQuery()
+				End If
+
+			End If
+
+
+			iRow = iRow + 1
 			Next dr
 
-		Catch ex As Exception
-			MessageBox.Show("Error CMVOLT Records..." & ex.Message, "")
+			'Catch ex As Exception
+			'	MessageBox.Show("Error CMVOLT Records..." & ex.Message, "")
 
-		Finally
+			'		Finally
 
 			con.Close()
-		End Try
+		'End Try
 
 
 
@@ -547,9 +707,20 @@ Public Class Form1
 	Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
 		'Form3.Visible = True
 
-		DateTimePicker1.Value = Convert.ToDateTime(Now().AddDays(-2))
-		DateTimePicker2.Value = Convert.ToDateTime(Now().AddDays(-1))
-		DateTimePicker3.Value = Convert.ToDateTime(Now())
+		If DateTime.Now.TimeOfDay.Hours <= 20 Then
+			DateTimePicker1.Value = Convert.ToDateTime(Now().AddDays(-3))
+			DateTimePicker2.Value = Convert.ToDateTime(Now().AddDays(-2))
+			DateTimePicker3.Value = Convert.ToDateTime(Now().AddDays(-1))
+		Else
+			DateTimePicker1.Value = Convert.ToDateTime(Now().AddDays(-2))
+			DateTimePicker2.Value = Convert.ToDateTime(Now().AddDays(-1))
+			DateTimePicker3.Value = Convert.ToDateTime(Now())
 
+		End If
+
+	End Sub
+
+	Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
+		AllBhavCopy.Visible = True
 	End Sub
 End Class
